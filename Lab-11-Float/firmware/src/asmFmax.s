@@ -65,7 +65,47 @@ nanValue: .word 0x7FFFFFFF
  .type initVariables,%function
 initVariables:
     /* YOUR initVariables CODE BELOW THIS LINE! Don't forget to push and pop! */
-
+    push {r4-r11,LR}
+    
+    // initialize all f1* variables to 0
+    mov r4, #0
+    ldr r5, =f1
+    str r4, [r5]
+    ldr r5, =sb1
+    str r4, [r5]
+    ldr r5, =biasedExp1
+    str r4, [r5]
+    ldr r5, =exp1
+    str r4, [r5]
+    ldr r5, =mant1
+    str r4, [r5]
+    
+    // initalize all f2* variables to 0
+    ldr r5, =f2
+    str r4, [r5]
+    ldr r5, =sb2
+    str r4, [r5]
+    ldr r5, =biasedExp2
+    str r4, [r5]
+    ldr r5, =exp2
+    str r4, [r5]
+    ldr r5, =mant2
+    str r4, [r5]
+    
+    // initialize all *Max variables to 0
+    ldr r5, =fMax
+    str r4, [r5]
+    ldr r5, =signBitMax
+    str r4, [r5]
+    ldr r5, =biasedExpMax
+    str r4, [r5]
+    ldr r5, =expMax
+    str r4, [r5]
+    ldr r5, =mantMax
+    str r4, [r5]
+    
+    pop {r4-r11,LR}
+    mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR initVariables CODE ABOVE THIS LINE! Don't forget to push and pop! */
 
     
@@ -82,7 +122,27 @@ initVariables:
 .type getSignBit,%function
 getSignBit:
     /* YOUR getSignBit CODE BELOW THIS LINE! Don't forget to push and pop! */
+    push {r4-r11,LR}
+    
+    // registers for positive and negative sign bits
+    mov r10, #0
+    mov r11, #1
+    mov r9, 0x80000000
+    // get value of r0
+    ldr r4, [r0]
+    // get the most significant bit
+    ands r4, r4, r9
+    // if negative store 1 otherwise store 0
+    cmp r4, r9
+    beq is_neg
+    str r10, [r1]
+    b sb_end
+is_neg:
+    str r11, [r1]
 
+sb_end:
+    pop {r4-r11,LR}
+    mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR getSignBit CODE ABOVE THIS LINE! Don't forget to push and pop! */
     
 
@@ -109,7 +169,25 @@ getSignBit:
 .type getExponent,%function
 getExponent:
     /* YOUR getExponent CODE BELOW THIS LINE! Don't forget to push and pop! */
+    push {r4-r11,LR}
     
+    // load r0 for use
+    ldr r4, [r0]
+    // load value to get exponential value
+    mov r5, 0x7F800000
+    // isolate exponent bits
+    and r4, r4, r5
+    // shift right to move exponent to lower bits
+    lsr r4, r4, #23
+    // store biased exponent
+    str r4, [r1]
+    // subtract 127 to get unbiased exponent
+    sub r4, r4, #127
+    // store unbiased exponent
+    str r4, [r2]
+    
+    pop {r4-r11,LR}
+    mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR getExponent CODE ABOVE THIS LINE! Don't forget to push and pop! */
    
 
@@ -168,8 +246,39 @@ asmFmax:
      */
 
     /* YOUR asmFmax CODE BELOW THIS LINE! VVVVVVVVVVVVVVVVVVVVV  */
+    push {r4-r11,LR}
+    
+    // call initVariables to initalize all variables to 0
+    bl initVariables
+    
+    /* SIGN BIT */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store sign bit (bit 31).
+    // unpack to f1*
+    ldr r0, =f1
+    ldr r1, =sb1
+    bl getSignBit
+    /* EXPONENT */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store BIASED
+    // r2: address of mem to store unpacked and UNBIASED 
+    ldr r0, =f1
+    ldr r1, =biasedExp1
+    ldr r2, =exp1
+    bl getExponent
     
     
+    
+    // unpack to f2*
+    ldr r0, =f2
+    ldr r1, =sb2
+    bl getSignBit
+    ldr r6, [r1]
+    
+    
+    
+    pop {r4-r11,LR}
+    mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR asmFmax CODE ABOVE THIS LINE! ^^^^^^^^^^^^^^^^^^^^^  */
 
    
