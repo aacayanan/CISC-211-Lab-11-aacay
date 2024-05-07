@@ -173,7 +173,7 @@ getExponent:
     
     // load r0 for use
     ldr r4, [r0]
-    // load value to get exponential value
+    // value to get exponential value
     mov r5, 0x7F800000
     // isolate exponent bits
     and r4, r4, r5
@@ -205,7 +205,19 @@ getExponent:
 .type getMantissa,%function
 getMantissa:
     /* YOUR getMantissa CODE BELOW THIS LINE! Don't forget to push and pop! */
+    push {r4-r11,LR}
+
+    // load r0 for use
+    ldr r4, [r0]
+    // value to get mantissa value
+    ldr r5, =0x7FFFFF
+    // isolate mantissa bits
+    and r4, r4, r5
+    // store mantissa
+    str r4, [r1]
     
+    pop {r4-r11,LR}
+    mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR getMantissa CODE ABOVE THIS LINE! Don't forget to push and pop! */
    
 
@@ -251,10 +263,11 @@ asmFmax:
     // call initVariables to initalize all variables to 0
     bl initVariables
     
+    // unpack to f1*
+
     /* SIGN BIT */
     // r0: address of mem containing 32b float to be unpacked
     // r1: address of mem to store sign bit (bit 31).
-    // unpack to f1*
     ldr r0, =f1
     ldr r1, =sb1
     bl getSignBit
@@ -266,17 +279,186 @@ asmFmax:
     ldr r1, =biasedExp1
     ldr r2, =exp1
     bl getExponent
-    
+    /* MANTISSA */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store unpacked bits 0-22 (mantissa)
+    ldr r0, =f1
+    ldr r1, =mant1
+    bl getMantissa
     
     
     // unpack to f2*
+
+    /* SIGN BIT */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store sign bit (bit 31).
     ldr r0, =f2
     ldr r1, =sb2
     bl getSignBit
-    ldr r6, [r1]
+    /* EXPONENT */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store BIASED
+    // r2: address of mem to store unpacked and UNBIASED 
+    ldr r0, =f2
+    ldr r1, =biasedExp2
+    ldr r2, =exp2
+    bl getExponent
+    /* MANTISSA */
+    // r0: address of mem containing 32b float to be unpacked
+    // r1: address of mem to store unpacked bits 0-22 (mantissa)
+    ldr r0, =f2
+    ldr r1, =mant2
+    bl getMantissa
     
+#     // check if f1 is NaN or inf
+#     ldr r6, =biasedExp1
+#     ldr r6, [r6]
+#     cmp r6, 0xFF
+#     beq f1_nan_inf
+#     b check_f2
+# 
+# check_f2:
+#     ldr r6, =biasedExp2
+#     ldr r6, [r6]
+#     cmp r6, 0xFF
+#     beq f2_nan_inf
+#     b not_nan_inf
+#     
+# f1_nan_inf:
+#     ldr r6, =mant1
+#     ldr r6, [r6]
+#     cmp r6, 0x00400000
+#     beq nan_case
+#     b inf_case_f1
+#     
+# f2_nan_inf:
+#     ldr r6, =mant2
+#     ldr r6, [r6]
+#     cmp r6, 0x00400000
+#     beq nan_case
+#     b inf_case_f2
+#     
+# nan_case:
+#     ldr r6, =fMax
+#     mov r7, 0x7FFFFFFF
+#     str r7, [r6]
+#     b max_var
+#     
+# max_var:
+#     ldr r0, =fMax
+#     ldr r1, =signBitMax
+#     bl getSignBit
+#     
+#     ldr r0, =fMax
+#     ldr r1, =biasedExpMax
+#     ldr r2, =expMax
+#     bl getExponent
+#     
+#     ldr r0, =fMax
+#     ldr r1, =mantMax
+#     bl getMantissa
+#     
+#     b done
+#     
+# inf_case_f1:
+#     ldr r6, =sb1
+#     ldr r6, [r6]
+#     cmp r6, 1
+#     beq f2_max
+#     b f1_max
+#     
+# inf_case_f2:
+#     ldr r6, =sb2
+#     ldr r6, [r6]
+#     cmp r6, 1
+#     beq f1_max
+#     b f2_max
+# 
+# not_nan_inf:
+#     ldr r5, =sb1
+#     ldr r5, [r5]
+#     cmp r5, 0
+#     bne f1_neg
+#     b f1_pos
+#     
+# f1_neg:
+#     ldr r5, =sb2
+#     ldr r5, [r5]
+#     cmp r5, 0
+#     beq both_pos
+#     b f1_max
+#     
+# f1_pos:
+#     ldr r5, =sb2
+#     ldr r5, [r5]
+#     cmp r5, 0
+#     beq both_pos
+#     b f2_max
+#     
+# both_pos:
+#     ldr r5, =mant1
+#     ldr r5, [r5]
+#     ldr r6, =mant2
+#     ldr r6, [r6]
+#     cmp r5, r6
+#     bhi f1_max
+#     bls f2_max
+#     
+# f1_max:
+#     ldr r6, =fMax
+#     ldr r7, =f1
+#     ldr r7, [r7]
+#     str r7, [r6]
+#     b max_var
+#     
+# f2_max:
+#     ldr r6, =fMax
+#     ldr r7, =f2
+#     ldr r7, [r7]
+#     str r7, [r6]
+#     b max_var
     
+        // Assume f1 and f2 are already in r4 and r5
+    ldr r4, =f1
+    ldr r4, [r4]   // Load the actual value of f1
+    ldr r5, =f2
+    ldr r5, [r5]   // Load the actual value of f2
+
+    // Compare f1 and f2
+    cmp r4, r5
+    bge f1_greater_or_equal  // If f1 is greater or equal, proceed to store f1
+    b f2_greater             // Else, store f2
+
+f1_greater_or_equal:
+    ldr r6, =fMax
+    str r4, [r6]  // Store f1 into fMax
+    b update_globals
+
+f2_greater:
+    ldr r6, =fMax
+    str r5, [r6]  // Store f2 into fMax
+    b update_globals
+
+update_globals:
+    ldr r0, =fMax
+    ldr r1, =signBitMax
+    bl getSignBit
     
+    ldr r0, =fMax
+    ldr r1, =biasedExpMax
+    ldr r2, =expMax
+    bl getExponent
+    
+    ldr r0, =fMax
+    ldr r1, =mantMax
+    bl getMantissa
+    
+    b done
+
+
+
+
+done:
     pop {r4-r11,LR}
     mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR asmFmax CODE ABOVE THIS LINE! ^^^^^^^^^^^^^^^^^^^^^  */

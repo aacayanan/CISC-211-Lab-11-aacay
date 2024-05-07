@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
-  <executable name="dist/sam_e51_cnano/production/fp_starter_project.X.production.elf">
+  <executable name="dist/sam_e51_cnano/debug/fp_starter_project.X.debug.elf">
     <memory name="program">
       <units>bytes</units>
       <length>1048576</length>
-      <used>13385</used>
-      <free>1035191</free>
+      <used>13515</used>
+      <free>1035061</free>
     </memory>
     <memory name="data">
       <units>bytes</units>
