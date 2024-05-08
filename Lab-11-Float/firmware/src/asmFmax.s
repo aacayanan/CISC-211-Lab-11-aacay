@@ -70,7 +70,7 @@ initVariables:
     // initialize all f1* variables to 0
     mov r4, #0
     ldr r5, =f1
-    str r4, [r5]
+    str r0, [r5]
     ldr r5, =sb1
     str r4, [r5]
     ldr r5, =biasedExp1
@@ -82,7 +82,7 @@ initVariables:
     
     // initalize all f2* variables to 0
     ldr r5, =f2
-    str r4, [r5]
+    str r1, [r5]
     ldr r5, =sb2
     str r4, [r5]
     ldr r5, =biasedExp2
@@ -174,18 +174,31 @@ getExponent:
     // load r0 for use
     ldr r4, [r0]
     // value to get exponential value
-    mov r5, 0x7F800000
+    ldr r5, =0x7F800000
     // isolate exponent bits
     and r4, r4, r5
     // shift right to move exponent to lower bits
     lsr r4, r4, #23
     // store biased exponent
     str r4, [r1]
+    
+    // if biased exponent is 0, unbiased exponent is -126
+    cmp r4, #0
+    beq biased_zero
+    b biased_nonzero
+    
+biased_zero:
+    mov r4, #-126
+    str r4, [r2]
+    b exp_end
+    
+biased_nonzero:
     // subtract 127 to get unbiased exponent
     sub r4, r4, #127
     // store unbiased exponent
     str r4, [r2]
     
+exp_end:
     pop {r4-r11,LR}
     mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR getExponent CODE ABOVE THIS LINE! Don't forget to push and pop! */
@@ -418,16 +431,16 @@ asmFmax:
 #     str r7, [r6]
 #     b max_var
     
-        // Assume f1 and f2 are already in r4 and r5
+    // Assume f1 and f2 are already in r4 and r5
     ldr r4, =f1
     ldr r4, [r4]   // Load the actual value of f1
     ldr r5, =f2
     ldr r5, [r5]   // Load the actual value of f2
 
-    // Compare f1 and f2
-    cmp r4, r5
-    bge f1_greater_or_equal  // If f1 is greater or equal, proceed to store f1
-    b f2_greater             // Else, store f2
+// Compare f1 and f2
+cmp r4, r5
+bge f1_greater_or_equal  // If f1 is greater or equal, proceed to store f1
+b f2_greater             // Else, store f2
 
 f1_greater_or_equal:
     ldr r6, =fMax
