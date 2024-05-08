@@ -220,15 +220,45 @@ getMantissa:
     /* YOUR getMantissa CODE BELOW THIS LINE! Don't forget to push and pop! */
     push {r4-r11,LR}
 
+    ldr r6, =0x7FFFFF	    // used to get mantissa value
+    ldr r7, =0x7F800000	    // used to check set exponent bits
+    ldr r8, =0x800000	    // used to add 24th implied bit
+    
     // load r0 for use
     ldr r4, [r0]
-    // value to get mantissa value
-    ldr r5, =0x7FFFFF
-    // isolate mantissa bits
-    and r4, r4, r5
-    // store mantissa
-    str r4, [r1]
+    mov r5, r4
+    // get mantissa value
+    and r4, r4, r6
     
+    // check exponent bit
+    and r5, r5, r7
+    // compare with zero
+    cmp r5, #0
+    bne setbit23_1	    // if exponent bits are set
+    beq setbit23_0	    // otherwise if exponent bits are not set
+    
+setbit23_1:
+    // compare exponent bits with r5
+    cmp r5, r7
+    // if equal to 0, number must be inf
+    cmpeq r4, #0
+    beq inf_case
+    // otherwise add 24th impled bit
+    orr r4, r4, r8
+    str r4, [r1]
+    b mant_end
+    
+setbit23_0:
+    // store r4 to r1
+    str r4, [r1]
+    b mant_end
+    
+inf_case:
+    // handles if infinite
+    mov r4, #0
+    str r4, [r1]
+
+mant_end:
     pop {r4-r11,LR}
     mov pc, lr	 /* asmEncrypt return to caller */
     /* YOUR getMantissa CODE ABOVE THIS LINE! Don't forget to push and pop! */
@@ -323,136 +353,95 @@ asmFmax:
     ldr r1, =mant2
     bl getMantissa
     
-#     // check if f1 is NaN or inf
-#     ldr r6, =biasedExp1
-#     ldr r6, [r6]
-#     cmp r6, 0xFF
-#     beq f1_nan_inf
-#     b check_f2
-# 
-# check_f2:
-#     ldr r6, =biasedExp2
-#     ldr r6, [r6]
-#     cmp r6, 0xFF
-#     beq f2_nan_inf
-#     b not_nan_inf
-#     
-# f1_nan_inf:
-#     ldr r6, =mant1
-#     ldr r6, [r6]
-#     cmp r6, 0x00400000
-#     beq nan_case
-#     b inf_case_f1
-#     
-# f2_nan_inf:
-#     ldr r6, =mant2
-#     ldr r6, [r6]
-#     cmp r6, 0x00400000
-#     beq nan_case
-#     b inf_case_f2
-#     
-# nan_case:
-#     ldr r6, =fMax
-#     mov r7, 0x7FFFFFFF
-#     str r7, [r6]
-#     b max_var
-#     
-# max_var:
-#     ldr r0, =fMax
-#     ldr r1, =signBitMax
-#     bl getSignBit
-#     
-#     ldr r0, =fMax
-#     ldr r1, =biasedExpMax
-#     ldr r2, =expMax
-#     bl getExponent
-#     
-#     ldr r0, =fMax
-#     ldr r1, =mantMax
-#     bl getMantissa
-#     
-#     b done
-#     
-# inf_case_f1:
-#     ldr r6, =sb1
-#     ldr r6, [r6]
-#     cmp r6, 1
-#     beq f2_max
-#     b f1_max
-#     
-# inf_case_f2:
-#     ldr r6, =sb2
-#     ldr r6, [r6]
-#     cmp r6, 1
-#     beq f1_max
-#     b f2_max
-# 
-# not_nan_inf:
-#     ldr r5, =sb1
-#     ldr r5, [r5]
-#     cmp r5, 0
-#     bne f1_neg
-#     b f1_pos
-#     
-# f1_neg:
-#     ldr r5, =sb2
-#     ldr r5, [r5]
-#     cmp r5, 0
-#     beq both_pos
-#     b f1_max
-#     
-# f1_pos:
-#     ldr r5, =sb2
-#     ldr r5, [r5]
-#     cmp r5, 0
-#     beq both_pos
-#     b f2_max
-#     
-# both_pos:
-#     ldr r5, =mant1
-#     ldr r5, [r5]
-#     ldr r6, =mant2
-#     ldr r6, [r6]
-#     cmp r5, r6
-#     bhi f1_max
-#     bls f2_max
-#     
-# f1_max:
-#     ldr r6, =fMax
-#     ldr r7, =f1
-#     ldr r7, [r7]
-#     str r7, [r6]
-#     b max_var
-#     
-# f2_max:
-#     ldr r6, =fMax
-#     ldr r7, =f2
-#     ldr r7, [r7]
-#     str r7, [r6]
-#     b max_var
-    
-    // Assume f1 and f2 are already in r4 and r5
+    // load f1 and f2 to r4 and r5 respectively
     ldr r4, =f1
-    ldr r4, [r4]   // Load the actual value of f1
+    ldr r4, [r4]   // load the value of f1
     ldr r5, =f2
-    ldr r5, [r5]   // Load the actual value of f2
+    ldr r5, [r5]   // load the value of f2
+    
+    // check if f1 is infinity
+    ldr r7, =0xFF000000	    // exponent for inf
+    ldr r8, =0x007FFFFF	    // mantissa all zero
+    
+    ldr r9, =f1
+    ldr r9, [r9]    // load value of f1
+    and r10, r9, r7
+    and r11, r9, r8
+    cmp r10, r7
+    beq f1_inf
+    b f1_not_inf
+    
+f1_not_inf:
+    // check if f2 is infinity
+    ldr r9, =f2
+    ldr r9, [r9]
+    and r10, r9, r7
+    and r11, r9, r8
+    cmp r10, r7
+    beq f2_inf
+    b compare_f1_f2
+    
+f1_inf:
+    // f1 is infinite
+    ldr r4, =sb1
+    ldr r4, [r4]
+    cmp r4, #1
+    beq f2_greater
+    b f1_greater_or_equal
+    
+f2_inf:
+    // f2 is infinite
+    ldr r4, =sb2
+    ldr r4, [r4]
+    cmp r4, #1
+    beq f1_greater_or_equal
+    b f2_greater
 
-// Compare f1 and f2
-cmp r4, r5
-bge f1_greater_or_equal  // If f1 is greater or equal, proceed to store f1
-b f2_greater             // Else, store f2
+compare_f1_f2:
+    // check if either f1 or f2 is greater
+    ldr r6, =sb1
+    ldr r6, [r6]
+    ldr r7, =sb2
+    ldr r7, [r7]
+    // is different sign, positive is greater
+    cmp r6, r7
+    beq same_sign
+    cmp r6, #0
+    bne f2_greater	// if f1 is negative and f2 is positive, f2 is greater
+    b f1_greater_or_equal
+    
+same_sign:
+    // check if sign is positive or negative
+    cmp r6, #0
+    beq both_positive
+    b both_negative
+    
+both_positive:
+    // handles positive signs
+    cmp r4, r5
+    bge f1_greater_or_equal
+    b f2_greater
+    
+both_negative:
+    // handles negative signs
+    cmp r4, r5
+    ble f1_greater_or_equal	// reverse comparison for negative numbers
+    b f2_greater  
 
 f1_greater_or_equal:
+    // if f1 is greater or equal
     ldr r6, =fMax
-    str r4, [r6]  // Store f1 into fMax
-    b update_globals
+    str r4, [r6]  // store f1 into fMax
+    b update_fMax
 
 f2_greater:
+    // if f2 is greater or equal
     ldr r6, =fMax
-    str r5, [r6]  // Store f2 into fMax
-    b update_globals
+    str r5, [r6]  // store f2 into fMax
+    b update_fMax
 
-update_globals:
+update_fMax:
+    // update all fMax* variables
     ldr r0, =fMax
     ldr r1, =signBitMax
     bl getSignBit
@@ -467,9 +456,6 @@ update_globals:
     bl getMantissa
     
     b done
-
-
-
 
 done:
     pop {r4-r11,LR}
